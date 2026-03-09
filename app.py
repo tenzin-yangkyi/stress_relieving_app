@@ -2,7 +2,7 @@ import streamlit as st
 import time
 import random
 from music import music_player
-from database import create_table, add_entry, get_entries
+from database import create_table, add_entry, get_entries, register_user, login_user
 
 # ── PAGE CONFIG ──
 st.set_page_config(page_title="MindEase | Stress Relief", page_icon="🧠", layout="wide")
@@ -164,17 +164,58 @@ footer { visibility: hidden; }
 
 # ── DATABASE INIT ──
 create_table()
-
+# SESSION STATE
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 def get_emoji(mood):
     return {"Happy": "😊", "Calm": "😌", "Neutral": "😐", "Stressed": "😰", "Sad": "😢", "Excited": "🤩"}.get(mood, "😐")
+# LOGIN PAGE
+if not st.session_state.logged_in:
 
+    st.title("🧠 MindEase Login")
+
+    tab1, tab2 = st.tabs(["Login", "Register"])
+
+    with tab1:
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
+
+        if st.button("Login"):
+            user = login_user(username, password)
+
+            if user:
+                st.session_state.logged_in = True
+                st.session_state.username = username
+                st.success("Login successful!")
+                st.rerun()
+            else:
+                st.error("Invalid username or password")
+
+    with tab2:
+        new_user = st.text_input("Create Username")
+        new_pass = st.text_input("Create Password", type="password")
+
+        if st.button("Register"):
+            if register_user(new_user, new_pass):
+                st.success("Account created! Please login.")
+            else:
+                st.error("Username already exists")
+
+    st.stop()
 # ── SIDEBAR ──
 with st.sidebar:
     st.title("🧠 MindEase")
+    st.write(f"Welcome, {st.session_state.username}")
+
+    if st.button("Logout"):
+        st.session_state.logged_in = False
+        st.rerun()
+
     menu = st.radio("Navigate", [
         "🏠 Home", "💙 Mood Detection", "🧘 Breathing Exercise",
         "🎵 Calm Music Player", "📔 Personal Journal", "📚 Exam Stress Zone"
     ])
+
     st.markdown("---")
     st.markdown("*🌿 Take a breath. You're doing great.*")
 
@@ -223,7 +264,7 @@ elif menu == "💙 Mood Detection":
             st.caption(f"Confidence: {int(score * 100)}%")
 
             if st.button("📔 Save to Journal"):
-                add_entry(mood, score, user_input)
+                add_entry(st.session_state.username, mood, score, user_input)
                 st.success("Saved to your journal!")
         else:
             st.warning("Please write how you're feeling first.")
@@ -268,7 +309,7 @@ elif menu == "📔 Personal Journal":
 
     if st.button("💾 Save Entry"):
         if journal_text.strip():
-            add_entry(mood_option, 1.0, journal_text)
+            add_entry(st.session_state.username, mood_option, 1.0, journal_text)
             st.success("Entry saved! 🌿")
             st.rerun()
         else:
@@ -276,14 +317,14 @@ elif menu == "📔 Personal Journal":
 
     st.markdown("---")
     st.subheader("📜 Your Entries")
-    entries = get_entries()
+    entries = get_entries(st.session_state.username)
 
     if entries:
         for entry in entries:
             st.markdown(f"""
             <div class="entry-card">
-                📅 <b>{entry[1]}</b> &nbsp;|&nbsp; {entry[2]} {get_emoji(entry[2])}<br>
-                <span style="color:#4a5a4a">{entry[4]}</span>
+            📅 <b>{entry[2]}</b> &nbsp;|&nbsp; {entry[3]} {get_emoji(entry[3])}<br>
+            <span style="color:#4a5a4a">{entry[5]}</span>
             </div>
             """, unsafe_allow_html=True)
     else:
